@@ -1,5 +1,7 @@
 {
   "name": "AL2 IoT Dashboard",
-  "description": "A comprehensive IoT dashboard for monitoring Arduino sensor data, managing devices, and visualizing real-time metrics.",
-  "requestFramePermissions": []
+  "description": "A comprehensive IoT dashboard for monitoring Arduino sensor data, managing devices, and visualizing real-time metrics with map support.",
+  "requestFramePermissions": [
+    "geolocation"
+  ]
 }

@@ -1,163 +1,142 @@
 
 import { User, Sensor, Reading } from '../types';
 
-// In a real scenario, this would point to your actual backend URL
-// For this React demo, we will simulate responses if the backend isn't running
-const API_URL = 'http://localhost:3000/api';
+const API_URL = 'http://localhost:8000/api';
 
-const headers = {
-  'Content-Type': 'application/json',
+const getHeaders = () => {
+  return {
+    'Content-Type': 'application/json',
+  };
 };
 
-// Helper to handle fetch with credentials
 const fetchWithAuth = async (endpoint: string, options: RequestInit = {}) => {
   try {
     const response = await fetch(`${API_URL}${endpoint}`, {
       ...options,
-      headers: { ...headers, ...options.headers },
-      credentials: 'include', // Important for session cookies
+      headers: { ...getHeaders(), ...options.headers },
     });
     
     if (!response.ok) {
-      throw new Error('API Request Failed');
+      const errorData = await response.json().catch(() => ({ detail: 'Erro desconhecido' }));
+      throw new Error(errorData.detail || 'Falha na requisição');
     }
     return response.json();
-  } catch (error) {
-    // Re-throw to be caught by specific services
+  } catch (error: any) {
+    // Se falhar por conexão (servidor offline), lançamos um erro específico para o service tratar
+    if (error.message.includes('Failed to fetch')) {
+      throw new Error('OFFLINE');
+    }
     throw error;
   }
+};
+
+// Auxiliar para gerenciar sensores locais quando o banco está offline
+const getLocalSensors = (): Sensor[] => {
+  const stored = localStorage.getItem('al2_local_sensors');
+  return stored ? JSON.parse(stored) : [];
+};
+
+const saveLocalSensor = (sensor: Sensor) => {
+  const sensors = getLocalSensors();
+  sensors.push(sensor);
+  localStorage.setItem('al2_local_sensors', JSON.stringify(sensors));
 };
 
 export const authService = {
   me: async (): Promise<{ user: User | null }> => {
     try {
-      return await fetchWithAuth('/me');
+      const userData = localStorage.getItem('al2_user');
+      if (userData) return { user: JSON.parse(userData) };
+      return { user: null };
     } catch (e) {
-      console.warn("Backend not reachable. Returning null to force login.");
-      // Return null user to force the Login screen on startup if backend is down
       return { user: null }; 
     }
   },
   login: async (username: string, password: string): Promise<{ user: User }> => {
-    try {
-      return await fetchWithAuth('/login', {
-        method: 'POST',
-        body: JSON.stringify({ username, password }),
-      });
-    } catch (e) {
-      // Mock login for demo
-      // Logic: Only "EduardoBighetti" is Admin. Everyone else is User.
-      const isAdmin = username === 'EduardoBighetti';
-      
-      return { 
-        user: { 
-          id: isAdmin ? 999 : Math.floor(Math.random() * 1000), 
-          username: username,
-          role: isAdmin ? 'admin' : 'user'
-        } 
-      };
-    }
+    const data = await fetchWithAuth('/login', {
+      method: 'POST',
+      body: JSON.stringify({ username, password }),
+    });
+    localStorage.setItem('al2_user', JSON.stringify(data.user));
+    return data;
   },
   logout: async (): Promise<void> => {
-    try {
-      return await fetchWithAuth('/logout', { method: 'POST' });
-    } catch (e) {
-      return;
-    }
+    localStorage.removeItem('al2_user');
   },
-  register: async (username: string, password: string): Promise<{ user: User }> => {
+  register: async (payload: any): Promise<{ user: User }> => {
+    const data = await fetchWithAuth('/register', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+    localStorage.setItem('al2_user', JSON.stringify(data.user));
+    return data;
+  },
+  getUsers: async (): Promise<User[]> => {
     try {
-      return await fetchWithAuth('/register', {
-        method: 'POST',
-        body: JSON.stringify({ username, password }),
-      });
+      return await fetchWithAuth('/users');
     } catch (e) {
-       const isAdmin = username === 'EduardoBighetti';
-       return { 
-         user: { 
-           id: Math.floor(Math.random() * 1000), 
-           username: username,
-           role: isAdmin ? 'admin' : 'user'
-         } 
-       };
+      return []; // Fallback para dev
     }
   },
   sendFeedback: async (email: string, message: string): Promise<boolean> => {
-    // In a real app, this would POST to a backend which uses SMTP/SendGrid
-    // to email dudubighetti2005@gmail.com
-    console.log(`Sending email to dudubighetti2005@gmail.com from ${email}: ${message}`);
-    return new Promise((resolve) => setTimeout(() => resolve(true), 1500));
+    console.log(`Feedback para suporte: ${message} de ${email}`);
+    return new Promise((resolve) => setTimeout(() => resolve(true), 1000));
   }
 };
 
 export const sensorService = {
   getAll: async (): Promise<Sensor[]> => {
     try {
-      return await fetchWithAuth('/sensors');
-    } catch (e) {
-      // Mock data for UI preview
-      return [
-        { id: 1, identifier: 'ESP32-001', name: 'Sala de Servidores', status: 'active', last_seen: new Date().toISOString() },
-        { id: 2, identifier: 'ESP8266-A', name: 'Estufa Hidropônica', status: 'active', last_seen: new Date(Date.now() - 300000).toISOString() },
-        { id: 3, identifier: 'ESP32-LAB-02', name: 'Laboratório Químico', status: 'offline', last_seen: new Date(Date.now() - 86400000).toISOString() },
-      ];
+      const apiSensors = await fetchWithAuth('/sensors');
+      return [...apiSensors, ...getLocalSensors()];
+    } catch (err: any) {
+      // Se estiver offline, retorna apenas os locais para não quebrar a UI
+      return getLocalSensors();
     }
   },
-  create: async (identifier: string, name: string): Promise<Sensor> => {
+  create: async (identifier: string, name: string, latitude?: number, longitude?: number): Promise<Sensor> => {
     try {
       return await fetchWithAuth('/sensors', {
         method: 'POST',
-        body: JSON.stringify({ identifier, name }),
+        body: JSON.stringify({ identifier, name, latitude, longitude }),
       });
-    } catch (e) {
-       return { id: Math.random(), identifier, name, status: 'offline', last_seen: new Date().toISOString() };
+    } catch (err: any) {
+      // Se falhar (servidor offline), salvamos localmente para permitir desenvolvimento da UI
+      if (err.message === 'OFFLINE') {
+        const newLocalSensor: Sensor = {
+          id: Math.floor(Math.random() * 10000), // ID temporário
+          identifier,
+          name,
+          latitude,
+          longitude,
+          status: 'offline',
+          last_seen: new Date().toISOString()
+        };
+        saveLocalSensor(newLocalSensor);
+        return newLocalSensor;
+      }
+      throw err;
     }
   },
   delete: async (id: number): Promise<void> => {
     try {
-      return await fetchWithAuth(`/sensors/${id}`, { method: 'DELETE' });
-    } catch (e) {
-      return;
+      await fetchWithAuth(`/sensors/${id}`, { method: 'DELETE' });
+    } catch (err) {
+      // Remove do local se não encontrar no banco ou banco offline
+      const sensors = getLocalSensors().filter(s => s.id !== id);
+      localStorage.setItem('al2_local_sensors', JSON.stringify(sensors));
     }
   }
 };
 
 export const readingService = {
   getLatest: async (sensorId?: number): Promise<Reading[]> => {
-    const query = sensorId ? `?sensorId=${sensorId}` : '';
     try {
-      const data = await fetchWithAuth(`/readings${query}`);
-      // If we are in "Dashboard" mode (no sensorId), we might need to average data on frontend
-      // But if backend sends raw rows, we might just return them.
-      return data;
+      const query = sensorId ? `?sensorId=${sensorId}` : '';
+      return await fetchWithAuth(`/readings${query}`);
     } catch (e) {
-      // Mock Data Generator
-      const now = Date.now();
-      
-      // If sensorId is provided, return specific data for that sensor
-      // If NO sensorId is provided (Dashboard), return a "Global Average" mock
-      
-      let baseTemp = 24;
-      let baseHum = 50;
-      
-      if (sensorId === 1) { baseTemp = 20; baseHum = 45; } // Cooler
-      if (sensorId === 2) { baseTemp = 28; baseHum = 80; } // Warmer/Humid
-      if (sensorId === 3) { baseTemp = 22; baseHum = 30; } 
-      
-      // If it's the dashboard (no ID), use a stable average
-      if (!sensorId) {
-        baseTemp = 25; // Average of all
-        baseHum = 55;
-      }
-
-      return Array.from({ length: 20 }).map((_, i) => ({
-        id: i,
-        sensor_id: sensorId || 0,
-        // Add some randomness but keep it smooth
-        temperature: baseTemp + (Math.sin(i) * 2) + (Math.random() * 0.5),
-        humidity: baseHum + (Math.cos(i) * 5) + (Math.random() * 1),
-        created_at: new Date(now - i * 1800000).toISOString(), // 30 min intervals
-      })).reverse();
+      // Retorna dados fake para o dashboard não ficar vazio em dev
+      return [];
     }
   }
 };

@@ -1,7 +1,8 @@
 
 import React, { useEffect, useState } from 'react';
 import { AreaChart, Area, XAxis, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
-import { Thermometer, Droplets, Clock, Wifi, Cpu } from 'lucide-react';
+// Added missing WifiOff import
+import { Thermometer, Droplets, Clock, Wifi, WifiOff, Cpu, MapPin } from 'lucide-react';
 import { sensorService, readingService } from '../services/api';
 import { Sensor, Reading } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -70,7 +71,7 @@ export const Monitoring: React.FC = () => {
   const latestTempDisplay = latestReading ? convertTemp(latestReading.temperature).toFixed(1) : '--';
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pb-12">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-800 dark:text-white">{t('mon.title')}</h1>
@@ -130,102 +131,157 @@ export const Monitoring: React.FC = () => {
                 <Clock size={16} />
                 <span>{t('mon.last_read')}: <strong>{latestReading ? new Date(latestReading.created_at).toLocaleTimeString() : '--:--'}</strong></span>
               </div>
+              {selectedSensor?.latitude && (
+                 <div className="flex items-center gap-2 border-l border-gray-200 dark:border-slate-600 pl-6 hidden sm:flex">
+                  <MapPin size={16} className="text-blue-500" />
+                  <span className="text-xs">{selectedSensor.latitude.toFixed(4)}, {selectedSensor.longitude?.toFixed(4)}</span>
+                </div>
+              )}
             </div>
           </div>
 
           {loading && readings.length === 0 ? (
              <div className="text-center py-10 text-gray-500 dark:text-gray-400">{t('dash.loading')}</div>
           ) : (
-            <>
-              {/* Detailed Stats */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="bg-white dark:bg-slate-800 p-6 rounded-xl shadow-sm border border-gray-100 dark:border-slate-700 border-l-4 border-l-orange-500">
-                  <div className="flex justify-between items-center mb-4">
-                    <h3 className="text-gray-500 dark:text-gray-400 font-medium flex items-center gap-2">
-                      <Thermometer size={18} /> {t('mon.col_temp')}
-                    </h3>
-                    <span className="text-2xl font-bold text-gray-800 dark:text-white">
-                      {latestTempDisplay}{tempUnit}
-                    </span>
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              
+              {/* Left Column: Stats & Charts */}
+              <div className="lg:col-span-2 space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="bg-white dark:bg-slate-800 p-6 rounded-xl shadow-sm border border-gray-100 dark:border-slate-700 border-l-4 border-l-orange-500">
+                    <div className="flex justify-between items-center mb-4">
+                      <h3 className="text-gray-500 dark:text-gray-400 font-medium flex items-center gap-2">
+                        <Thermometer size={18} /> {t('mon.col_temp')}
+                      </h3>
+                      <span className="text-2xl font-bold text-gray-800 dark:text-white">
+                        {latestTempDisplay}{tempUnit}
+                      </span>
+                    </div>
+                    <div className="h-48">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <AreaChart data={chartData}>
+                          <defs>
+                            <linearGradient id="colorTempMon" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="5%" stopColor="#f97316" stopOpacity={0.2}/>
+                              <stop offset="95%" stopColor="#f97316" stopOpacity={0}/>
+                            </linearGradient>
+                          </defs>
+                          <XAxis dataKey="time" hide />
+                          <Tooltip 
+                              contentStyle={{ backgroundColor: 'rgb(30, 41, 59)', border: 'none', borderRadius: '8px', color: '#fff' }}
+                              itemStyle={{ color: '#fff' }}
+                              formatter={(value: number) => [`${value}${tempUnit}`, t('mon.col_temp')]}
+                          />
+                          <Area type="monotone" dataKey="displayTemp" stroke="#f97316" fill="url(#colorTempMon)" strokeWidth={2} />
+                        </AreaChart>
+                      </ResponsiveContainer>
+                    </div>
                   </div>
-                  <div className="h-48">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <AreaChart data={chartData}>
-                        <defs>
-                          <linearGradient id="colorTempMon" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor="#f97316" stopOpacity={0.2}/>
-                            <stop offset="95%" stopColor="#f97316" stopOpacity={0}/>
-                          </linearGradient>
-                        </defs>
-                        <XAxis dataKey="time" hide />
-                        <Tooltip 
-                            contentStyle={{ backgroundColor: 'rgb(30, 41, 59)', border: 'none', borderRadius: '8px', color: '#fff' }}
-                            itemStyle={{ color: '#fff' }}
-                            formatter={(value: number) => [`${value}${tempUnit}`, t('mon.col_temp')]}
-                        />
-                        <Area type="monotone" dataKey="displayTemp" stroke="#f97316" fill="url(#colorTempMon)" strokeWidth={2} />
-                      </AreaChart>
-                    </ResponsiveContainer>
+
+                  <div className="bg-white dark:bg-slate-800 p-6 rounded-xl shadow-sm border border-gray-100 dark:border-slate-700 border-l-4 border-l-blue-500">
+                    <div className="flex justify-between items-center mb-4">
+                      <h3 className="text-gray-500 dark:text-gray-400 font-medium flex items-center gap-2">
+                        <Droplets size={18} /> {t('mon.col_hum')}
+                      </h3>
+                      <span className="text-2xl font-bold text-gray-800 dark:text-white">
+                        {latestReading?.humidity.toFixed(1) || '--'}%
+                      </span>
+                    </div>
+                    <div className="h-48">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={chartData}>
+                          <XAxis dataKey="time" hide />
+                          <Tooltip 
+                               cursor={{fill: 'rgba(255,255,255,0.1)'}} 
+                               contentStyle={{ backgroundColor: 'rgb(30, 41, 59)', border: 'none', borderRadius: '8px', color: '#fff' }}
+                               itemStyle={{ color: '#fff' }}
+                               formatter={(value: number) => [`${value}%`, t('mon.col_hum')]}
+                          />
+                          <Bar dataKey="humidity" fill="#3b82f6" radius={[4, 4, 0, 0]} />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
                   </div>
                 </div>
 
-                <div className="bg-white dark:bg-slate-800 p-6 rounded-xl shadow-sm border border-gray-100 dark:border-slate-700 border-l-4 border-l-blue-500">
-                  <div className="flex justify-between items-center mb-4">
-                    <h3 className="text-gray-500 dark:text-gray-400 font-medium flex items-center gap-2">
-                      <Droplets size={18} /> {t('mon.col_hum')}
-                    </h3>
-                    <span className="text-2xl font-bold text-gray-800 dark:text-white">
-                      {latestReading?.humidity.toFixed(1) || '--'}%
-                    </span>
+                {/* Data Table */}
+                <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-100 dark:border-slate-700 overflow-hidden">
+                  <div className="px-6 py-4 border-b border-gray-100 dark:border-slate-700">
+                    <h3 className="font-semibold text-gray-800 dark:text-white">{t('mon.history')}</h3>
                   </div>
-                  <div className="h-48">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={chartData}>
-                        <XAxis dataKey="time" hide />
-                        <Tooltip 
-                             cursor={{fill: 'rgba(255,255,255,0.1)'}} 
-                             contentStyle={{ backgroundColor: 'rgb(30, 41, 59)', border: 'none', borderRadius: '8px', color: '#fff' }}
-                             itemStyle={{ color: '#fff' }}
-                             formatter={(value: number) => [`${value}%`, t('mon.col_hum')]}
-                        />
-                        <Bar dataKey="humidity" fill="#3b82f6" radius={[4, 4, 0, 0]} />
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </div>
-                </div>
-              </div>
-
-              {/* Data Table */}
-              <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-100 dark:border-slate-700 overflow-hidden">
-                <div className="px-6 py-4 border-b border-gray-100 dark:border-slate-700">
-                  <h3 className="font-semibold text-gray-800 dark:text-white">{t('mon.history')}</h3>
-                </div>
-                <div className="overflow-x-auto max-h-80 overflow-y-auto">
-                  <table className="w-full text-left text-sm">
-                    <thead className="bg-gray-50 dark:bg-slate-700/50 sticky top-0">
-                      <tr>
-                        <th className="px-6 py-3 font-medium text-gray-500 dark:text-gray-400">{t('mon.col_date')}</th>
-                        <th className="px-6 py-3 font-medium text-gray-500 dark:text-gray-400">{t('mon.col_time')}</th>
-                        <th className="px-6 py-3 font-medium text-gray-500 dark:text-gray-400">{t('mon.col_temp')}</th>
-                        <th className="px-6 py-3 font-medium text-gray-500 dark:text-gray-400">{t('mon.col_hum')}</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-100 dark:divide-slate-700">
-                      {readings.slice().reverse().map((reading) => (
-                        <tr key={reading.id} className="hover:bg-gray-50 dark:hover:bg-slate-700/30 transition-colors">
-                          <td className="px-6 py-3 text-gray-600 dark:text-gray-300">{new Date(reading.created_at).toLocaleDateString()}</td>
-                          <td className="px-6 py-3 text-gray-600 dark:text-gray-300">{new Date(reading.created_at).toLocaleTimeString()}</td>
-                          <td className="px-6 py-3 font-medium text-orange-600 dark:text-orange-400">
-                             {convertTemp(reading.temperature).toFixed(1)}{tempUnit}
-                          </td>
-                          <td className="px-6 py-3 font-medium text-blue-600 dark:text-blue-400">{reading.humidity.toFixed(1)}%</td>
+                  <div className="overflow-x-auto max-h-80 overflow-y-auto">
+                    <table className="w-full text-left text-sm">
+                      <thead className="bg-gray-50 dark:bg-slate-700/50 sticky top-0">
+                        <tr>
+                          <th className="px-6 py-3 font-medium text-gray-500 dark:text-gray-400">{t('mon.col_date')}</th>
+                          <th className="px-6 py-3 font-medium text-gray-500 dark:text-gray-400">{t('mon.col_time')}</th>
+                          <th className="px-6 py-3 font-medium text-gray-500 dark:text-gray-400">{t('mon.col_temp')}</th>
+                          <th className="px-6 py-3 font-medium text-gray-500 dark:text-gray-400">{t('mon.col_hum')}</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100 dark:divide-slate-700">
+                        {readings.slice().reverse().map((reading) => (
+                          <tr key={reading.id} className="hover:bg-gray-50 dark:hover:bg-slate-700/30 transition-colors">
+                            <td className="px-6 py-3 text-gray-600 dark:text-gray-300">{new Date(reading.created_at).toLocaleDateString()}</td>
+                            <td className="px-6 py-3 text-gray-600 dark:text-gray-300">{new Date(reading.created_at).toLocaleTimeString()}</td>
+                            <td className="px-6 py-3 font-medium text-orange-600 dark:text-orange-400">
+                               {convertTemp(reading.temperature).toFixed(1)}{tempUnit}
+                            </td>
+                            <td className="px-6 py-3 font-medium text-blue-600 dark:text-blue-400">{reading.humidity.toFixed(1)}%</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
               </div>
-            </>
+
+              {/* Right Column: Location Map */}
+              <div className="lg:col-span-1">
+                <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-100 dark:border-slate-700 h-full flex flex-col overflow-hidden">
+                  <div className="p-4 border-b border-gray-100 dark:border-slate-700 flex items-center justify-between">
+                    <h3 className="font-semibold text-gray-800 dark:text-white flex items-center gap-2">
+                      <MapPin size={18} className="text-blue-500" />
+                      Localização do Projeto
+                    </h3>
+                  </div>
+                  
+                  {selectedSensor?.latitude && selectedSensor?.longitude ? (
+                    <div className="flex-1 min-h-[400px] relative">
+                      <iframe 
+                        title="Sensor Location"
+                        width="100%" 
+                        height="100%" 
+                        frameBorder="0" 
+                        scrolling="no" 
+                        marginHeight={0} 
+                        marginWidth={0} 
+                        src={`https://maps.google.com/maps?q=${selectedSensor.latitude},${selectedSensor.longitude}&z=15&output=embed`}
+                        className="grayscale-[0.2] dark:invert dark:hue-rotate-[180deg] dark:brightness-75"
+                      />
+                      <div className="absolute bottom-4 left-4 right-4 bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm p-3 rounded-lg border border-gray-200 dark:border-slate-700 text-xs shadow-lg">
+                        <div className="font-bold text-gray-800 dark:text-white mb-1">Coordenadas Atuais:</div>
+                        <div className="text-gray-600 dark:text-gray-400 flex flex-col gap-1">
+                          <span>Lat: {selectedSensor.latitude}</span>
+                          <span>Lng: {selectedSensor.longitude}</span>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex-1 flex flex-col items-center justify-center p-8 text-center bg-gray-50 dark:bg-slate-900/50">
+                      <div className="w-16 h-16 bg-gray-200 dark:bg-slate-800 text-gray-400 dark:text-gray-600 rounded-full flex items-center justify-center mb-4">
+                        <WifiOff size={32} />
+                      </div>
+                      <h4 className="font-medium text-gray-700 dark:text-gray-300">GPS não disponível</h4>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                        Este dispositivo não possui coordenadas geográficas cadastradas ou configuradas.
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+            </div>
           )}
         </>
       )}

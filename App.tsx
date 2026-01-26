@@ -7,6 +7,7 @@ import { Dashboard } from './pages/Dashboard';
 import { Devices } from './pages/Devices';
 import { Monitoring } from './pages/Monitoring';
 import { Settings } from './pages/Settings';
+import { UserManagement } from './pages/UserManagement';
 import { authService } from './services/api';
 import { User } from './types';
 import { LanguageProvider } from './contexts/LanguageContext';
@@ -14,11 +15,7 @@ import { LanguageProvider } from './contexts/LanguageContext';
 function AppContent() {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
-  
-  const [isDarkMode, setIsDarkMode] = useState(() => {
-    const saved = localStorage.getItem('theme');
-    return saved === 'dark';
-  });
+  const [isDarkMode, setIsDarkMode] = useState(() => localStorage.getItem('theme') === 'dark');
 
   useEffect(() => {
     if (isDarkMode) {
@@ -36,9 +33,7 @@ function AppContent() {
     const checkAuth = async () => {
       try {
         const data = await authService.me();
-        if (data.user) {
-          setUser(data.user);
-        }
+        if (data.user) setUser(data.user);
       } catch (error) {
         console.log("Not authenticated");
       } finally {
@@ -57,80 +52,26 @@ function AppContent() {
     }
   };
 
-  const handleUpdateUser = (updatedUser: User) => {
-    setUser(updatedUser);
-  };
+  const handleUpdateUser = (updatedUser: User) => setUser(updatedUser);
 
   if (loading) {
-    return <div className="h-screen flex items-center justify-center bg-gray-50 dark:bg-slate-900 text-gray-500 dark:text-gray-400">Iniciando sistema...</div>;
+    return <div className="h-screen flex items-center justify-center bg-gray-50 dark:bg-slate-900 text-gray-500 dark:text-gray-400 font-bold">Iniciando sistema AL2...</div>;
   }
 
   return (
     <Router>
       <Routes>
-        <Route 
-          path="/login" 
-          element={!user ? <Login onLoginSuccess={setUser} /> : <Navigate to="/" />} 
-        />
+        <Route path="/login" element={!user ? <Login onLoginSuccess={setUser} /> : <Navigate to="/" />} />
         
-        <Route 
-          path="/" 
-          element={
-            user ? (
-              <Layout user={user} onLogout={handleLogout}>
-                <Dashboard />
-              </Layout>
-            ) : (
-              <Navigate to="/login" />
-            )
-          } 
-        />
+        <Route path="/" element={user ? <Layout user={user} onLogout={handleLogout}><Dashboard /></Layout> : <Navigate to="/login" />} />
+        <Route path="/monitoring" element={user ? <Layout user={user} onLogout={handleLogout}><Monitoring /></Layout> : <Navigate to="/login" />} />
+        <Route path="/devices" element={user ? <Layout user={user} onLogout={handleLogout}><Devices /></Layout> : <Navigate to="/login" />} />
+        
+        {/* Protected route for Gerencia */}
+        <Route path="/users" element={user && user.role === 'gerencia' ? <Layout user={user} onLogout={handleLogout}><UserManagement /></Layout> : <Navigate to="/" />} />
 
-        <Route 
-          path="/monitoring" 
-          element={
-            user ? (
-              <Layout user={user} onLogout={handleLogout}>
-                <Monitoring />
-              </Layout>
-            ) : (
-              <Navigate to="/login" />
-            )
-          } 
-        />
-
-        <Route 
-          path="/devices" 
-          element={
-            user ? (
-              <Layout user={user} onLogout={handleLogout}>
-                <Devices />
-              </Layout>
-            ) : (
-              <Navigate to="/login" />
-            )
-          } 
-        />
-
-        <Route 
-          path="/settings" 
-          element={
-            user ? (
-              <Layout user={user} onLogout={handleLogout}>
-                <Settings 
-                  user={user} 
-                  onUpdateUser={handleUpdateUser}
-                  onLogout={handleLogout}
-                  isDarkMode={isDarkMode}
-                  toggleTheme={toggleTheme}
-                />
-              </Layout>
-            ) : (
-              <Navigate to="/login" />
-            )
-          } 
-        />
-
+        <Route path="/settings" element={user ? <Layout user={user} onLogout={handleLogout}><Settings user={user} onUpdateUser={handleUpdateUser} onLogout={handleLogout} isDarkMode={isDarkMode} toggleTheme={toggleTheme}/></Layout> : <Navigate to="/login" />} />
+        
         <Route path="*" element={<Navigate to="/" />} />
       </Routes>
     </Router>

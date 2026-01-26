@@ -2,9 +2,11 @@
 export interface User {
   id: number;
   username: string;
-  avatar?: string; // Base64 or URL
+  full_name?: string;
+  avatar?: string;
   email?: string;
-  role?: 'admin' | 'user';
+  role: 'gerencia' | 'admin' | 'user';
+  created_at?: string;
 }
 
 export interface Sensor {
@@ -13,7 +15,9 @@ export interface Sensor {
   name: string;
   status: 'active' | 'offline' | 'maintenance';
   last_seen?: string;
-  token?: string; // Only visible upon creation
+  token?: string;
+  latitude?: number;
+  longitude?: number;
 }
 
 export interface Reading {
