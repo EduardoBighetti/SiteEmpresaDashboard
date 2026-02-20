@@ -1,9 +1,9 @@
 
 import React, { useState } from 'react';
-import { authService } from '../services/api';
+import { authService, accessKeyService } from '../services/api';
 import { User } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
-import { ShieldAlert, User as UserIcon, ShieldCheck, Zap } from 'lucide-react';
+import { ShieldAlert, User as UserIcon, ShieldCheck, Zap, Shield } from 'lucide-react';
 
 interface LoginProps {
   onLoginSuccess: (user: User) => void;
@@ -25,15 +25,13 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
     e.preventDefault();
     setError('');
 
-    // Validação básica de chaves no frontend (O backend fará a validação real)
-    if (!isLogin && role === 'gerencia' && accessKey !== 'Al2@@') {
-      setError('Chave de Gerência incorreta.');
-      return;
-    }
-
-    if (!isLogin && role === 'admin' && !accessKey) {
-      setError('Chave de Administrador é obrigatória.');
-      return;
+    // Validação Dinâmica de Chaves
+    if (!isLogin && role !== 'user') {
+      const isValid = await accessKeyService.validate(accessKey, role);
+      if (!isValid) {
+        setError(`Esta chave de acesso não é válida para o cargo ${role.toUpperCase()}.`);
+        return;
+      }
     }
 
     setLoading(true);
@@ -60,24 +58,39 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
     }
   };
 
-  /**
-   * MODO DESENVOLVEDOR: 
-   * Ignora o login e entra com privilégios máximos de Gerência.
-   */
-  const handleSkipLogin = () => {
-    const mockUser: User = {
-      id: 999,
-      username: 'Gerente_Master',
-      full_name: 'Desenvolvedor AL2 (Acesso Total)',
-      role: 'gerencia',
-      email: 'dev@al2.tecnologia',
-      avatar: 'https://api.dicebear.com/7.x/bottts/svg?seed=AL2Dev' // Avatar de robô para Dev
-    };
+  const handleQuickAccess = (selectedRole: 'user' | 'admin' | 'gerencia') => {
+    let mockUser: User;
     
-    // Salva no localStorage para persistir o login ao atualizar a página (F5)
+    if (selectedRole === 'gerencia') {
+      mockUser = {
+        id: 999,
+        username: 'Gerente_Master',
+        full_name: 'Desenvolvedor AL2 (Acesso Total)',
+        role: 'gerencia',
+        email: 'dev@al2.tecnologia',
+        avatar: 'https://api.dicebear.com/7.x/bottts/svg?seed=AL2Dev'
+      };
+    } else if (selectedRole === 'admin') {
+      mockUser = {
+        id: 888,
+        username: 'Admin_Teste',
+        full_name: 'Administrador de Sistemas',
+        role: 'admin',
+        email: 'admin@al2.tecnologia',
+        avatar: 'https://api.dicebear.com/7.x/bottts/svg?seed=Admin'
+      };
+    } else {
+      mockUser = {
+        id: 777,
+        username: 'Usuario_Padrao',
+        full_name: 'Operador de Monitoramento',
+        role: 'user',
+        email: 'user@al2.tecnologia',
+        avatar: 'https://api.dicebear.com/7.x/bottts/svg?seed=User'
+      };
+    }
+    
     localStorage.setItem('al2_user', JSON.stringify(mockUser));
-    
-    // Notifica o App.tsx que o login foi realizado
     onLoginSuccess(mockUser);
   };
 
@@ -148,12 +161,12 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
                 {role !== 'user' && (
                   <div className="animate-in zoom-in-95 duration-200">
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                      {role === 'gerencia' ? 'Chave de Acesso Gerencial' : 'Chave de Acesso Administrador'}
+                      Chave de Acesso Obrigatória
                     </label>
                     <input
                       type="password"
                       required
-                      placeholder="Digite a chave autorizada"
+                      placeholder="Cole a chave gerada pelo Master"
                       value={accessKey}
                       onChange={(e) => setAccessKey(e.target.value)}
                       className="w-full px-4 py-2 border border-blue-200 dark:border-blue-900 bg-blue-50/50 dark:bg-blue-900/10 text-gray-900 dark:text-white rounded-lg outline-none focus:ring-2 focus:ring-blue-500 transition-all"
@@ -200,7 +213,6 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
             </button>
           </form>
 
-          {/* Botão de Bypass "FULL GERENTE" para Desenvolvimento */}
           <div className="relative mt-8 mb-4">
             <div className="absolute inset-0 flex items-center" aria-hidden="true">
               <div className="w-full border-t border-gray-200 dark:border-slate-700"></div>
@@ -210,13 +222,31 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
             </div>
           </div>
 
-          <button
-            onClick={handleSkipLogin}
-            className="w-full py-3 px-4 bg-amber-500/10 hover:bg-amber-500/20 border-2 border-dashed border-amber-500 text-amber-600 dark:text-amber-400 rounded-xl text-sm font-black transition-all flex items-center justify-center gap-2 group"
-          >
-            <Zap size={18} className="fill-amber-500 group-hover:scale-125 transition-transform" />
-            ATIVAR ACESSO MASTER (GERÊNCIA)
-          </button>
+          <div className="space-y-3">
+            <button
+              onClick={() => handleQuickAccess('gerencia')}
+              className="w-full py-3 px-4 bg-amber-500/10 hover:bg-amber-500/20 border-2 border-dashed border-amber-500 text-amber-600 dark:text-amber-400 rounded-xl text-sm font-black transition-all flex items-center justify-center gap-2 group"
+            >
+              <Zap size={18} className="fill-amber-500 group-hover:scale-125 transition-transform" />
+              ATIVAR ACESSO MASTER (GERÊNCIA)
+            </button>
+
+            <button
+              onClick={() => handleQuickAccess('admin')}
+              className="w-full py-2.5 px-4 bg-blue-500/5 hover:bg-blue-500/10 border-2 border-dashed border-blue-500/50 text-blue-600 dark:text-blue-400 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 group"
+            >
+              <Shield size={16} className="group-hover:scale-110 transition-transform" />
+              ACESSO RÁPIDO: ADMINISTRADOR
+            </button>
+
+            <button
+              onClick={() => handleQuickAccess('user')}
+              className="w-full py-2.5 px-4 bg-slate-500/5 hover:bg-slate-500/10 border-2 border-dashed border-slate-500/50 text-slate-600 dark:text-slate-400 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 group"
+            >
+              <UserIcon size={16} className="group-hover:scale-110 transition-transform" />
+              ACESSO RÁPIDO: USUÁRIO PADRÃO
+            </button>
+          </div>
 
           <div className="mt-6 text-center border-t border-gray-100 dark:border-slate-700 pt-6">
             <button

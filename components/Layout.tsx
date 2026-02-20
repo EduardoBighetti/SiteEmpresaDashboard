@@ -17,7 +17,6 @@ export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout }) => {
   const [isLargeScreen, setIsLargeScreen] = useState(window.innerWidth >= 1024);
   const { t } = useLanguage();
 
-  // Track screen size to determine which state controls the "Open" status for the icon
   useEffect(() => {
     const handleResize = () => {
       setIsLargeScreen(window.innerWidth >= 1024);
@@ -34,16 +33,20 @@ export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout }) => {
     }
   };
 
-  // Determine if the sidebar is visually "open" to toggle the icon
   const isSidebarVisible = isLargeScreen ? isDesktopOpen : isMobileOpen;
 
-  // Logic to determine display label
-  const isSpecificAdmin = user?.username === 'EduardoBighetti';
-  const roleLabel = isSpecificAdmin ? t('header.admin') : t('header.user');
+  // Lógica dinâmica para o rótulo do cargo no Header
+  const getRoleLabel = () => {
+    if (!user) return t('header.user');
+    if (user.role === 'gerencia') return 'Gerente Master';
+    if (user.role === 'admin') return t('header.admin');
+    return t('header.user');
+  };
 
   return (
     <div className="flex h-screen bg-gray-50 dark:bg-slate-900 transition-colors duration-200 overflow-hidden">
       <Sidebar 
+        user={user} // ADICIONADO: Agora a Sidebar recebe os dados do usuário
         onLogout={onLogout} 
         isMobileOpen={isMobileOpen}
         isDesktopOpen={isDesktopOpen}
@@ -76,8 +79,8 @@ export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout }) => {
           <div className="flex items-center gap-4">
             <div className="hidden md:flex flex-col items-end mr-2">
               <span className="text-sm font-semibold text-gray-800 dark:text-gray-200">{user?.username || 'User'}</span>
-              <span className="text-xs text-gray-500 dark:text-gray-400 font-bold tracking-wider">
-                {roleLabel}
+              <span className="text-xs text-blue-600 dark:text-blue-400 font-bold tracking-wider uppercase">
+                {getRoleLabel()}
               </span>
             </div>
             <div className="h-10 w-10 bg-slate-100 dark:bg-slate-700 rounded-full flex items-center justify-center border border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 overflow-hidden">

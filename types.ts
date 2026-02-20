@@ -9,6 +9,14 @@ export interface User {
   created_at?: string;
 }
 
+export interface AccessKey {
+  id: number;
+  key: string;
+  role: 'gerencia' | 'admin';
+  is_used: boolean;
+  created_at: string;
+}
+
 export interface Sensor {
   id: number;
   identifier: string;
@@ -18,6 +26,8 @@ export interface Sensor {
   token?: string;
   latitude?: number;
   longitude?: number;
+  floor_x?: number; // Posição X em % na planta baixa
+  floor_y?: number; // Posição Y em % na planta baixa
 }
 
 export interface Reading {
